@@ -1,0 +1,174 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="" />
+
+  <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro|Source+Sans+Pro:300,400,400i,700" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://fredrikw.github.io/theme/stylesheet/style.min.css">
+
+  <link rel="stylesheet" type="text/css" href="https://fredrikw.github.io/theme/pygments/github.min.css">
+  <link rel="stylesheet" type="text/css" href="https://fredrikw.github.io/theme/font-awesome/css/font-awesome.min.css">
+
+
+    <link href="https://fredrikw.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Not always an expert Atom">
+
+
+    <link rel="shortcut icon" href="http://localhost:8000/images/icon.png" type="image/x-icon">
+    <link rel="icon" href="http://localhost:8000/images/icon.png" type="image/x-icon">
+
+
+
+<meta name="author" content="Fredrik Wallner" />
+<meta name="description" content="Trying to fix InChI support on conda version of OpenBabel on Windows" />
+<meta name="keywords" content="OpenBabel, conda, Cheminformatics">
+
+<meta property="og:site_name" content="Not always an expert"/>
+<meta property="og:title" content="conda-openbabel on Windows"/>
+<meta property="og:description" content="Trying to fix InChI support on conda version of OpenBabel on Windows"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:url" content="https://fredrikw.github.io/conda-openbabel-windows.html"/>
+<meta property="og:type" content="article"/>
+<meta property="article:published_time" content="2019-04-15 00:00:00+02:00"/>
+<meta property="article:modified_time" content=""/>
+<meta property="article:author" content="https://fredrikw.github.io/author/fredrik-wallner.html">
+<meta property="article:section" content="Cheminformatics"/>
+<meta property="article:tag" content="OpenBabel"/>
+<meta property="article:tag" content="conda"/>
+<meta property="article:tag" content="Cheminformatics"/>
+<meta property="og:image" content="http://localhost:8000/images/icon.png">
+
+  <title>Not always an expert &ndash; conda-openbabel on Windows</title>
+
+</head>
+<body>
+  <aside>
+    <div>
+      <a href="https://fredrikw.github.io">
+        <img src="http://localhost:8000/images/icon.png" alt="Not always an expert" title="Not always an expert">
+      </a>
+      <h1><a href="https://fredrikw.github.io">Not always an expert</a></h1>
+
+<p>Cheminformatics, python, data science...</p>
+      <nav>
+        <ul class="list">
+          <li><a href="https://fredrikw.github.io/pages/about.html#about">About</a></li>
+
+        </ul>
+      </nav>
+
+      <ul class="social">
+        <li><a class="sc-github" href="https://github.com/fredrikw" target="_blank"><i class="fa fa-github"></i></a></li>
+        <li><a class="sc-linkedin" href="https://www.linkedin.com/in/fredrik-wallner-24178110" target="_blank"><i class="fa fa-linkedin"></i></a></li>
+      </ul>
+    </div>
+
+
+  </aside>
+  <main>
+
+
+<article class="single">
+  <header>
+      
+    <h1 id="conda-openbabel-windows">conda-openbabel on Windows</h1>
+    <p>
+          Posted on mån 15 april 2019 in <a href="https://fredrikw.github.io/category/cheminformatics.html">Cheminformatics</a>
+
+
+    </p>
+  </header>
+
+
+  <div>
+    <p>I recently needed to use openbabel on Windows and decided to install it through conda since I use conda as my Python environment manager on that machine.</p>
+<p>Installing openbabel, either by <code>conda install -c openbabel openbabel</code> or <code>conda install -c conda-forge openbabel</code> worked great and I proceded with my code. However, after a while I noticed that the InChI-format was missing from the install.</p>
+<p>Going for Google and friends, there was some indications that this is a <a href="http://forums.openbabel.org/Problem-with-Pybel-installation-for-Anaconda-td4659541.html#a4659544">known problem</a> with <a href="https://github.com/openbabel/conda-openbabel/tree/windows-inchi">some efforts</a> going into solving it.</p>
+<p>But it still didn't work for me, so I set out to fix it.</p>
+<h3>Appveyour build failing</h3>
+<p>After cloning the <a href="https://github.com/openbabel/conda-openbabel/">repo</a> and setting up AppVeyour, I immediately bumped inte the first problem. conda-build refused to work on AppVeyour, giving the error <code>TypeError: LoadLibrary() argument 1 must be str, not None</code>.</p>
+<p>Further research showed that changes made in conda 3.16 made builds without prior activation of a conda environment fail. <a href="https://github.com/conda/conda-build/issues/3220#issuecomment-430697863">Apparently</a>, the fact that it worked previously was not by design, but it meant that build settings that previously worked great stopped doing so with a rather crytic error message.</p>
+<p>When the problem was found, solving it was as easy as adding the <code>activate</code> command to the install section in <a href="https://github.com/fredrikw/conda-openbabel/commit/5bd6220ea4b445bd57593cb28492e99ebdb99078">appveyour.yml</a>.</p>
+<h3>Tests not failing</h3>
+<p>The second problem was that the tests in the conda recipe didn't fail, even when formats were missing, since obabel exits with the exit code 0 also when all conversion fails. An <a href="https://github.com/fredrikw/conda-openbabel/commit/6e9f098e26ad882e885036e104edaa8102befda1">easy fix here</a> was to grep for some specific text in the outputs instead and use that exit code to signal failure.</p>
+<h3>Actual InChI problem</h3>
+<p>Now I could finally fix the main problem. The build logs in AppVeyour included</p>
+<div class="highlight"><pre><span></span>WARNING: INCHI_LIBRARY not set, or does not exist.
+....InChI format will NOT be compiled.
+</pre></div>
+
+
+<p>and looking in the cmake files it seemed to be due to <a href="https://github.com/openbabel/openbabel/blob/cd85a984a439314d090fab76f0520061939fe6bf/CMakeLists.txt#L199-L201">these lines</a> that forces the use of system InChI if OB_USE_PREBUILT_BINARIES is set on MSVC builds. Why this is so, and why the conda build is set to use prebuilt binaries, I don't know. But setting OB_USE_PREBUILT_BINARIES to OFF in the build instructions made everything work for me.</p>
+<p>The changes have now been submitted as a PR, so we will see what happens.</p>
+  </div>
+  <div class="tag-cloud">
+    <p>
+      <a href="https://fredrikw.github.io/tag/openbabel.html">OpenBabel</a>
+      <a href="https://fredrikw.github.io/tag/conda.html">conda</a>
+      <a href="https://fredrikw.github.io/tag/cheminformatics.html">Cheminformatics</a>
+    </p>
+  </div>
+
+
+
+
+
+<!-- Disqus -->
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+    var disqus_shortname = 'Not always an expert';
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>
+        Please enable JavaScript to view comments.
+
+</noscript>
+<!-- End Disqus -->
+</article>
+
+    <footer>
+<p>
+  &copy;  2019 - This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>
+</p>
+<p>    Powered by <a href="http://getpelican.com" target="_blank">Pelican</a> - <a href="https://github.com/alexandrevicenzi/flex" target="_blank">Flex</a> theme by <a href="http://alexandrevicenzi.com" target="_blank">Alexandre Vicenzi</a>
+</p>
+<p>Site logo based on icons made by <a href="https://www.freepik.com/" title="Freepik" target="_blank">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon"  target="_blank">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></iv>
+<p>
+  <a rel="license"
+     href="http://creativecommons.org/licenses/by/4.0/"
+     target="_blank">
+    <img alt="Creative Commons License"
+         title="Creative Commons License"
+         style="border-width:0"
+           src="https://i.creativecommons.org/l/by/4.0/88x31.png"
+         width="88"
+         height="31"/>
+  </a>
+</p>    </footer>
+  </main>
+
+
+
+
+<script type="application/ld+json">
+{
+  "@context" : "http://schema.org",
+  "@type" : "Blog",
+  "name": " Not always an expert ",
+  "url" : "https://fredrikw.github.io",
+  "image": "http://localhost:8000/images/icon.png",
+  "description": ""
+}
+</script>
+
+</body>
+</html>

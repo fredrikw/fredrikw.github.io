@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Not always an expert</title><link href="https://fredrikw.github.io/" rel="alternate"></link><link href="https://fredrikw.github.io/feeds/all.atom.xml" rel="self"></link><id>https://fredrikw.github.io/</id><updated>2019-04-16T00:00:00+02:00</updated><subtitle>Cheminformatics, python, data science...</subtitle><entry><title>Multiple public IPs on Unify Security Gateway (with multiple VPN connections)</title><link href="https://fredrikw.github.io/multiple-IPs-USG.html" rel="alternate"></link><published>2019-04-16T00:00:00+02:00</published><updated>2019-04-16T00:00:00+02:00</updated><author><name>Fredrik Wallner</name></author><id>tag:fredrikw.github.io,2019-04-16:/multiple-IPs-USG.html</id><summary type="html">&lt;p&gt;Configuring the Unify Security Gateway to allow separate VPN servers on different public IPs&lt;/p&gt;</summary><content type="html">&lt;p&gt;I have been using the &lt;a href="https://unifi-sdn.ui.com/"&gt;Unify&lt;/a&gt; line of network equipment for a while and in general I'm very pleased! One limitation though is that the graphical interface to the Security Gateway (USG) is not capable of controlling more than one external IP-address. The functionality is there, but you need to go "under the hood" to access it.&lt;/p&gt;
+&lt;p&gt;Recently, I needed to complement the already present VPN connection with a site-to-site VPN and since more than one external IP was available we decided to use a fresh IP for the site-to-site. This post is more of a "remember-how-I-did-it" post than a true instruction, but hopefully it can help someone (me if not anyone else...)&lt;/p&gt;
+&lt;h3&gt;GUI configuration&lt;/h3&gt;
+&lt;p&gt;It should be noted that &lt;a href="https://community.ubnt.com/t5/UniFi-Routing-Switching/Plans-to-bring-GUI-configuration-for-multiple-public-IP-s/td-p/1501280/page/18"&gt;there are plans&lt;/a&gt; to add GUI configuration for multiple public IP addresses to the USG, but it's been in the planning state for a really long time...&lt;/p&gt;
+&lt;p&gt;When it's ready, this will be a lot easier than what I'm about to describe below.&lt;/p&gt;
+&lt;h3&gt;SSH configuration&lt;/h3&gt;
+&lt;p&gt;To be able to do the setup, you need to &lt;a href="https://help.ubnt.com/hc/en-us/articles/218850057"&gt;enable SSH access&lt;/a&gt; to the devices in the site configuration at the controller.&lt;/p&gt;
+&lt;h3&gt;Adding a second public IP address and configure NAT forward of "normal" VPN&lt;/h3&gt;
+&lt;p&gt;After Googling and reading the Unify &lt;a href="https://community.ubnt.com/t5/UniFi-Routing-Switching/UniFi-Security-Gateway-3P-and-multiple-WAN-addresses/td-p/1550129"&gt;forums&lt;/a&gt; and &lt;a href="https://help.ubnt.com/hc/en-us/articles/215458888-UniFi-How-to-further-customize-USG-configuration-with-config-gateway-json"&gt;help&lt;/a&gt; for a while, the following procedure was found.&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;The addition of a second public IP address is made by creating a &lt;code&gt;config.gateway.json&lt;/code&gt; file in &lt;code&gt;/srv/unifi/data/sites/default/&lt;/code&gt; (I'm using a CloudKey controller) and putting in the "interfaces" section as below.&lt;/li&gt;
+&lt;li&gt;But an extra IP won't help by itself and since port-forwarding in the GUI dosn't limit on public IP we also need to set firewall and NAT rules for the port forward here.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;quot;interfaces&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;quot;ethernet&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;quot;eth0&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;quot;address&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;
+                    &lt;span class="s2"&gt;&amp;quot;&amp;lt;EXTERNAL IP #1&amp;gt;/29&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                    &lt;span class="s2"&gt;&amp;quot;&amp;lt;EXTERNAL IP #2&amp;gt;/29&amp;quot;&lt;/span&gt;
+                &lt;span class="p"&gt;]&lt;/span&gt;
+            &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;},&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;quot;firewall&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;quot;name&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;quot;WAN_IN&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;quot;rule&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;1000&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;action&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;accept&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;description&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;L2TP Ports&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;destination&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                            &lt;span class="nt"&gt;&amp;quot;address&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;lt;INTERNAL IP FOR VPN SERVER&amp;gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                            &lt;span class="nt"&gt;&amp;quot;port&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;50,500,4500&amp;quot;&lt;/span&gt;
+                        &lt;span class="p"&gt;},&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;log&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;enable&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;protocol&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;tcp_udp&amp;quot;&lt;/span&gt;
+                    &lt;span class="p"&gt;}&lt;/span&gt;
+                &lt;span class="p"&gt;}&lt;/span&gt;
+            &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;},&lt;/span&gt;
+    &lt;span class="nt"&gt;&amp;quot;service&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="nt"&gt;&amp;quot;nat&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+            &lt;span class="nt"&gt;&amp;quot;rule&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                &lt;span class="nt"&gt;&amp;quot;1000&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;description&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;L2TP to VPN&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;destination&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;address&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;lt;EXTERNAL IP #1&amp;gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;port&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;50,500,4500&amp;quot;&lt;/span&gt;
+                    &lt;span class="p"&gt;},&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;inbound-interface&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;eth0&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;inside-address&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+                        &lt;span class="nt"&gt;&amp;quot;address&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;&amp;lt;INTERNAL IP FOR VPN SERVER&amp;gt;&amp;quot;&lt;/span&gt;
+                    &lt;span class="p"&gt;},&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;protocol&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;tcp_udp&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+                    &lt;span class="nt"&gt;&amp;quot;type&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;destination&amp;quot;&lt;/span&gt;
+                &lt;span class="p"&gt;}&lt;/span&gt;
+            &lt;span class="p"&gt;}&lt;/span&gt;
+        &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h3&gt;Setting up site-to-site VPN&lt;/h3&gt;
+&lt;p&gt;With this in place, it was possible to set up the site-to-site VPN through the GUI after changing the WAN address of the USG to &lt;code&gt;&amp;lt;EXTERNAL IP #2&amp;gt;&lt;/code&gt;&lt;/p&gt;
+&lt;h3&gt;Trouble shooting&lt;/h3&gt;
+&lt;p&gt;If/when problems arise, some good pointers on trouble shooting (especially the VPN connections) can be found at &lt;a href="https://help.ubnt.com/hc/en-us/articles/360002668854-UniFi-Verifying-and-Troubleshooting-IPsec-VPN-on-USG"&gt;Ubiquiti's help pages&lt;/a&gt;.&lt;/p&gt;</content><category term="Networking"></category><category term="Unify"></category></entry><entry><title>conda-openbabel on Windows</title><link href="https://fredrikw.github.io/conda-openbabel-windows.html" rel="alternate"></link><published>2019-04-15T00:00:00+02:00</published><updated>2019-04-15T00:00:00+02:00</updated><author><name>Fredrik Wallner</name></author><id>tag:fredrikw.github.io,2019-04-15:/conda-openbabel-windows.html</id><summary type="html">&lt;p&gt;Trying to fix InChI support on conda version of OpenBabel on Windows&lt;/p&gt;</summary><content type="html">&lt;p&gt;I recently needed to use openbabel on Windows and decided to install it through conda since I use conda as my Python environment manager on that machine.&lt;/p&gt;
+&lt;p&gt;Installing openbabel, either by &lt;code&gt;conda install -c openbabel openbabel&lt;/code&gt; or &lt;code&gt;conda install -c conda-forge openbabel&lt;/code&gt; worked great and I proceded with my code. However, after a while I noticed that the InChI-format was missing from the install.&lt;/p&gt;
+&lt;p&gt;Going for Google and friends, there was some indications that this is a &lt;a href="http://forums.openbabel.org/Problem-with-Pybel-installation-for-Anaconda-td4659541.html#a4659544"&gt;known problem&lt;/a&gt; with &lt;a href="https://github.com/openbabel/conda-openbabel/tree/windows-inchi"&gt;some efforts&lt;/a&gt; going into solving it.&lt;/p&gt;
+&lt;p&gt;But it still didn't work for me, so I set out to fix it.&lt;/p&gt;
+&lt;h3&gt;Appveyour build failing&lt;/h3&gt;
+&lt;p&gt;After cloning the &lt;a href="https://github.com/openbabel/conda-openbabel/"&gt;repo&lt;/a&gt; and setting up AppVeyour, I immediately bumped inte the first problem. conda-build refused to work on AppVeyour, giving the error &lt;code&gt;TypeError: LoadLibrary() argument 1 must be str, not None&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Further research showed that changes made in conda 3.16 made builds without prior activation of a conda environment fail. &lt;a href="https://github.com/conda/conda-build/issues/3220#issuecomment-430697863"&gt;Apparently&lt;/a&gt;, the fact that it worked previously was not by design, but it meant that build settings that previously worked great stopped doing so with a rather crytic error message.&lt;/p&gt;
+&lt;p&gt;When the problem was found, solving it was as easy as adding the &lt;code&gt;activate&lt;/code&gt; command to the install section in &lt;a href="https://github.com/fredrikw/conda-openbabel/commit/5bd6220ea4b445bd57593cb28492e99ebdb99078"&gt;appveyour.yml&lt;/a&gt;.&lt;/p&gt;
+&lt;h3&gt;Tests not failing&lt;/h3&gt;
+&lt;p&gt;The second problem was that the tests in the conda recipe didn't fail, even when formats were missing, since obabel exits with the exit code 0 also when all conversion fails. An &lt;a href="https://github.com/fredrikw/conda-openbabel/commit/6e9f098e26ad882e885036e104edaa8102befda1"&gt;easy fix here&lt;/a&gt; was to grep for some specific text in the outputs instead and use that exit code to signal failure.&lt;/p&gt;
+&lt;h3&gt;Actual InChI problem&lt;/h3&gt;
+&lt;p&gt;Now I could finally fix the main problem. The build logs in AppVeyour included&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;WARNING: INCHI_LIBRARY not set, or does not exist.
+....InChI format will NOT be compiled.
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;and looking in the cmake files it seemed to be due to &lt;a href="https://github.com/openbabel/openbabel/blob/cd85a984a439314d090fab76f0520061939fe6bf/CMakeLists.txt#L199-L201"&gt;these lines&lt;/a&gt; that forces the use of system InChI if OB_USE_PREBUILT_BINARIES is set on MSVC builds. Why this is so, and why the conda build is set to use prebuilt binaries, I don't know. But setting OB_USE_PREBUILT_BINARIES to OFF in the build instructions made everything work for me.&lt;/p&gt;
+&lt;p&gt;The changes have now been submitted as a PR, so we will see what happens.&lt;/p&gt;</content><category term="OpenBabel"></category><category term="conda"></category><category term="Cheminformatics"></category></entry></feed>
